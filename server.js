@@ -66,19 +66,15 @@ function transformToolChoice(toolChoice) {
 function transformTools(tools) {
   if (!tools || !Array.isArray(tools)) return tools;
 
-  console.log('Original tools format:', JSON.stringify(tools, null, 2));
-
   return tools.map(tool => {
     // If tool is already in correct format, return as-is
     if (tool.type === 'function' && tool.function) {
-      console.log('Tool already in correct format');
       return tool;
     }
 
     // Handle Cursor's direct tool format (properties directly on tool with type)
     // This is the case: {type: "function", name: "...", description: "..."}
     if (tool.type === 'function' && tool.name && tool.description) {
-      console.log('Converting Cursor direct format with type to proper OpenAI format');
       const { type, name, description, parameters, ...rest } = tool;
       return {
         type: 'function',
@@ -93,7 +89,6 @@ function transformTools(tools) {
 
     // Handle Cursor's direct tool format (properties directly on tool without type)
     if (tool.name && tool.description && tool.parameters) {
-      console.log('Converting Cursor direct format to OpenAI format');
       return {
         type: 'function',
         function: {
@@ -106,7 +101,6 @@ function transformTools(tools) {
 
     // Handle case where tool might have a function object but missing type
     if (tool.function && !tool.type) {
-      console.log('Adding missing type to tool with function');
       return {
         type: 'function',
         function: tool.function
@@ -115,7 +109,6 @@ function transformTools(tools) {
 
     // If tool has type but no function, try to construct function from other properties
     if (tool.type === 'function' && !tool.function) {
-      console.log('Constructing function object from tool properties');
       const { type, ...functionProps } = tool;
       return {
         type: 'function',
@@ -125,14 +118,12 @@ function transformTools(tools) {
 
     // If tool has no recognizable format, ensure it has type
     if (!tool.type) {
-      console.log('Adding default type to tool');
       return {
         type: 'function',
         ...tool
       };
     }
 
-    console.log('Returning tool as-is');
     return tool;
   });
 }
@@ -162,10 +153,6 @@ function getSmartMaxTokens(model, requestedTokens) {
 function transformRequest(req) {
   const { model, max_tokens, tool_choice, tools, ...rest } = req.body;
 
-  console.log('=== REQUEST TRANSFORMATION DEBUG ===');
-  console.log('Full request body:', JSON.stringify(req.body, null, 2));
-  console.log('Extracted tools:', tools);
-
   // Normalize model name to handle date suffixes and variations
   const normalizedModel = normalizeModelName(model);
   const config = MODEL_CONFIG[normalizedModel];
@@ -174,18 +161,11 @@ function transformRequest(req) {
     throw new Error(`Model ${model} not supported. Use claude-opus-4`);
   }
 
-  console.log(`Original model: ${model}, Normalized: ${normalizedModel}`);
-
   // Transform tool_choice and tools
   const transformedToolChoice = transformToolChoice(tool_choice);
   const transformedTools = transformTools(tools);
 
-  console.log(`Tool choice transformation:`, {
-    original: tool_choice,
-    transformed: transformedToolChoice
-  });
-
-  const result = {
+  return {
     ...rest,
     model: config.gradient_model,
     max_tokens: getSmartMaxTokens(normalizedModel, max_tokens),
@@ -193,11 +173,6 @@ function transformRequest(req) {
     tools: transformedTools,
     stream: req.body.stream || false
   };
-
-  console.log('Final transformed request:', JSON.stringify(result, null, 2));
-  console.log('=== END DEBUG ===');
-
-  return result;
 }
 
 // Routes
