@@ -1,0 +1,20 @@
+name: litellm-opus4-advanced-proxy
+region: nyc
+services:
+  - name: advanced-proxy
+    source_dir: /
+    github:
+      repo: richafltr/litellm-opus4-advanced
+      branch: main
+      deploy_on_push: true
+    run_command: npm start
+    environment_slug: node-js
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    health_check:
+      http_path: /health
+      initial_delay_seconds: 15
+    envs:
+      - key: NODE_ENV
+        value: production
+        type: GENERAL
