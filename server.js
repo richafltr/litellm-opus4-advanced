@@ -39,6 +39,55 @@ function normalizeModelName(model) {
   return modelMappings[baseModel] || baseModel;
 }
 
+// Transform tool_choice from Cursor format to Gradient format
+function transformToolChoice(toolChoice) {
+  if (!toolChoice) return undefined;
+
+  // If it's already a string, return as-is
+  if (typeof toolChoice === 'string') {
+    return toolChoice;
+  }
+
+  // If it's an object with type property, extract the type
+  if (typeof toolChoice === 'object' && toolChoice.type) {
+    return toolChoice.type;
+  }
+
+  // If it's an object with function property (OpenAI format)
+  if (typeof toolChoice === 'object' && toolChoice.function) {
+    return toolChoice.function.name ? 'required' : 'auto';
+  }
+
+  // Default fallback
+  return 'auto';
+}
+
+// Transform tools array from Cursor format to Gradient format
+function transformTools(tools) {
+  if (!tools || !Array.isArray(tools)) return tools;
+
+  return tools.map(tool => {
+    // If tool is already in correct format, return as-is
+    if (tool.type === 'function' && tool.function) {
+      return tool;
+    }
+
+    // If tool has function properties directly (Cursor format)
+    if (tool.name && tool.description && tool.parameters) {
+      return {
+        type: 'function',
+        function: {
+          name: tool.name,
+          description: tool.description,
+          parameters: tool.parameters
+        }
+      };
+    }
+
+    return tool;
+  });
+}
+
 // Initialize OpenAI client for Gradient
 const gradientClient = new OpenAI({
   apiKey: GRADIENT_API_KEY,
@@ -62,7 +111,7 @@ function getSmartMaxTokens(model, requestedTokens) {
 
 // Transform request for Gradient API
 function transformRequest(req) {
-  const { model, max_tokens, ...rest } = req.body;
+  const { model, max_tokens, tool_choice, tools, ...rest } = req.body;
 
   // Normalize model name to handle date suffixes and variations
   const normalizedModel = normalizeModelName(model);
@@ -74,10 +123,21 @@ function transformRequest(req) {
 
   console.log(`Original model: ${model}, Normalized: ${normalizedModel}`);
 
+  // Transform tool_choice and tools
+  const transformedToolChoice = transformToolChoice(tool_choice);
+  const transformedTools = transformTools(tools);
+
+  console.log(`Tool choice transformation:`, {
+    original: tool_choice,
+    transformed: transformedToolChoice
+  });
+
   return {
     ...rest,
     model: config.gradient_model,
     max_tokens: getSmartMaxTokens(normalizedModel, max_tokens),
+    tool_choice: transformedToolChoice,
+    tools: transformedTools,
     stream: req.body.stream || false
   };
 }
