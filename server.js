@@ -66,14 +66,18 @@ function transformToolChoice(toolChoice) {
 function transformTools(tools) {
   if (!tools || !Array.isArray(tools)) return tools;
 
+  console.log('Original tools format:', JSON.stringify(tools, null, 2));
+
   return tools.map(tool => {
     // If tool is already in correct format, return as-is
     if (tool.type === 'function' && tool.function) {
+      console.log('Tool already in correct format');
       return tool;
     }
 
-    // If tool has function properties directly (Cursor format)
+    // Handle Cursor's direct tool format (properties directly on tool)
     if (tool.name && tool.description && tool.parameters) {
+      console.log('Converting Cursor direct format to OpenAI format');
       return {
         type: 'function',
         function: {
@@ -84,6 +88,25 @@ function transformTools(tools) {
       };
     }
 
+    // Handle case where tool might have a function object but missing type
+    if (tool.function && !tool.type) {
+      console.log('Adding missing type to tool with function');
+      return {
+        type: 'function',
+        function: tool.function
+      };
+    }
+
+    // If tool has no recognizable format, ensure it has type
+    if (!tool.type) {
+      console.log('Adding default type to tool');
+      return {
+        type: 'function',
+        ...tool
+      };
+    }
+
+    console.log('Returning tool as-is');
     return tool;
   });
 }
@@ -113,6 +136,10 @@ function getSmartMaxTokens(model, requestedTokens) {
 function transformRequest(req) {
   const { model, max_tokens, tool_choice, tools, ...rest } = req.body;
 
+  console.log('=== REQUEST TRANSFORMATION DEBUG ===');
+  console.log('Full request body:', JSON.stringify(req.body, null, 2));
+  console.log('Extracted tools:', tools);
+
   // Normalize model name to handle date suffixes and variations
   const normalizedModel = normalizeModelName(model);
   const config = MODEL_CONFIG[normalizedModel];
@@ -132,7 +159,7 @@ function transformRequest(req) {
     transformed: transformedToolChoice
   });
 
-  return {
+  const result = {
     ...rest,
     model: config.gradient_model,
     max_tokens: getSmartMaxTokens(normalizedModel, max_tokens),
@@ -140,6 +167,11 @@ function transformRequest(req) {
     tools: transformedTools,
     stream: req.body.stream || false
   };
+
+  console.log('Final transformed request:', JSON.stringify(result, null, 2));
+  console.log('=== END DEBUG ===');
+
+  return result;
 }
 
 // Routes
