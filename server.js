@@ -23,6 +23,22 @@ const MODEL_CONFIG = {
   }
 };
 
+// Normalize model names (handle Cursor's date suffixes)
+function normalizeModelName(model) {
+  // Handle date-suffixed models like "claude-opus-4-20250514"
+  const baseModel = model.replace(/-\d{8}$/, '');
+
+  // Map common variations
+  const modelMappings = {
+    'claude-opus-4': 'claude-opus-4',
+    'claude-sonnet-4': 'claude-opus-4', // fallback to opus-4
+    'claude-3.5-sonnet': 'claude-opus-4', // fallback
+    'claude-3-opus': 'claude-opus-4', // fallback
+  };
+
+  return modelMappings[baseModel] || baseModel;
+}
+
 // Initialize OpenAI client for Gradient
 const gradientClient = new OpenAI({
   apiKey: GRADIENT_API_KEY,
@@ -47,16 +63,21 @@ function getSmartMaxTokens(model, requestedTokens) {
 // Transform request for Gradient API
 function transformRequest(req) {
   const { model, max_tokens, ...rest } = req.body;
-  
-  const config = MODEL_CONFIG[model];
+
+  // Normalize model name to handle date suffixes and variations
+  const normalizedModel = normalizeModelName(model);
+  const config = MODEL_CONFIG[normalizedModel];
+
   if (!config) {
     throw new Error(`Model ${model} not supported. Use claude-opus-4`);
   }
-  
+
+  console.log(`Original model: ${model}, Normalized: ${normalizedModel}`);
+
   return {
     ...rest,
     model: config.gradient_model,
-    max_tokens: getSmartMaxTokens(model, max_tokens),
+    max_tokens: getSmartMaxTokens(normalizedModel, max_tokens),
     stream: req.body.stream || false
   };
 }
@@ -92,22 +113,23 @@ app.get('/v1/models', async (req, res) => {
 
 app.post('/v1/chat/completions', async (req, res) => {
   try {
-    console.log(`Received request for model: ${req.body.model}`);
-    
+    const originalModel = req.body.model;
+    console.log(`Received request for model: ${originalModel}`);
+
     // Transform request for Gradient
     const gradientRequest = transformRequest(req);
-    
+
     console.log(`Using smart max_tokens: ${gradientRequest.max_tokens}`);
-    
+
     // Call Gradient API
     const completion = await gradientClient.chat.completions.create(gradientRequest);
-    
+
     // Transform response back to OpenAI format
     const openaiResponse = {
       id: completion.id,
       object: 'chat.completion',
       created: completion.created,
-      model: req.body.model, // Use original model name
+      model: originalModel, // Use original model name (including date suffix)
       choices: completion.choices.map(choice => ({
         index: choice.index,
         message: {
@@ -121,7 +143,7 @@ app.post('/v1/chat/completions', async (req, res) => {
       usage: completion.usage,
       system_fingerprint: null
     };
-    
+
     res.json(openaiResponse);
     
   } catch (error) {
