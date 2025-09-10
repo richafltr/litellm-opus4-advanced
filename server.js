@@ -75,7 +75,23 @@ function transformTools(tools) {
       return tool;
     }
 
-    // Handle Cursor's direct tool format (properties directly on tool)
+    // Handle Cursor's direct tool format (properties directly on tool with type)
+    // This is the case: {type: "function", name: "...", description: "..."}
+    if (tool.type === 'function' && tool.name && tool.description) {
+      console.log('Converting Cursor direct format with type to proper OpenAI format');
+      const { type, name, description, parameters, ...rest } = tool;
+      return {
+        type: 'function',
+        function: {
+          name: name,
+          description: description,
+          parameters: parameters,
+          ...rest
+        }
+      };
+    }
+
+    // Handle Cursor's direct tool format (properties directly on tool without type)
     if (tool.name && tool.description && tool.parameters) {
       console.log('Converting Cursor direct format to OpenAI format');
       return {
@@ -94,6 +110,16 @@ function transformTools(tools) {
       return {
         type: 'function',
         function: tool.function
+      };
+    }
+
+    // If tool has type but no function, try to construct function from other properties
+    if (tool.type === 'function' && !tool.function) {
+      console.log('Constructing function object from tool properties');
+      const { type, ...functionProps } = tool;
+      return {
+        type: 'function',
+        function: functionProps
       };
     }
 
