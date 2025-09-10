@@ -230,12 +230,13 @@ app.post('/v1/chat/completions', async (req, res) => {
 });
 
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'healthy', 
+  res.json({
+    status: 'healthy',
     timestamp: Date.now(),
     service: 'litellm-opus4-advanced',
     models_supported: Object.keys(MODEL_CONFIG),
-    sdk_version: 'openai-v4'
+    sdk_version: 'openai-v4',
+    version: '1.1.0-tool-fix'
   });
 });
 
